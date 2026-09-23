@@ -21,6 +21,7 @@ import {
   Flame,
   LayoutDashboard,
   Landmark,
+  Lock,
   LogOut,
   Menu,
   MessageCircle,
@@ -35,6 +36,7 @@ import {
   ShieldCheck,
   Sparkles,
   Sun,
+  Upload,
   UserRound,
   X,
 } from "lucide-react";
@@ -61,6 +63,7 @@ const icons: Record<string, LucideIcon> = {
   flame: Flame,
   "layout-dashboard": LayoutDashboard,
   landmark: Landmark,
+  lock: Lock,
   "log-out": LogOut,
   menu: Menu,
   "message-circle": MessageCircle,
@@ -75,6 +78,7 @@ const icons: Record<string, LucideIcon> = {
   "shield-check": ShieldCheck,
   sparkles: Sparkles,
   sun: Sun,
+  upload: Upload,
   "user-round": UserRound,
   x: X,
 };

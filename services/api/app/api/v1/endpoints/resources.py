@@ -1,0 +1,209 @@
+from datetime import UTC, datetime
+from pathlib import Path
+from uuid import UUID, uuid4
+
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
+from sqlalchemy import select
+
+from app.api.deps import DB, CurrentUser, require_permission
+from app.models.resources import Resource, ResourceBookmark, ResourceProgress
+from app.models.user import User
+from app.schemas.common import MessageResponse
+from app.schemas.resources import ResourceCreate, ResourceProgressRequest, ResourceResponse
+
+router = APIRouter(prefix="/resources", tags=["resources"])
+ContentPublisher = Depends(require_permission("content.publish"))
+MAX_UPLOAD_BYTES = 15 * 1024 * 1024
+ALLOWED_EXTENSIONS = {".pdf", ".png", ".jpg", ".jpeg", ".webp", ".doc", ".docx", ".xls", ".xlsx"}
+ALLOWED_MIME_TYPES = {
+    "application/pdf",
+    "image/png",
+    "image/jpeg",
+    "image/webp",
+    "application/msword",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "application/vnd.ms-excel",
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+}
+
+
+def to_response(resource: Resource, bookmark_ids: set[UUID], completed_ids: set[UUID]) -> ResourceResponse:
+    return ResourceResponse(
+        id=resource.id,
+        title=resource.title,
+        description=resource.description,
+        level=resource.level,
+        group_name=resource.group_name,
+        subject=resource.subject,
+        chapter=resource.chapter,
+        resource_type=resource.resource_type,
+        attempt=resource.attempt,
+        year=resource.year,
+        source=resource.source,
+        file_name=resource.file_name,
+        file_size=resource.file_size,
+        mime_type=resource.mime_type,
+        official_icai=resource.official_icai,
+        is_active=resource.is_active,
+        bookmarked=resource.id in bookmark_ids,
+        completed=resource.id in completed_ids,
+        created_at=resource.created_at,
+    )
+
+
+async def user_resource_state(db: DB, user: User, resource_ids: list[UUID]) -> tuple[set[UUID], set[UUID]]:
+    if not resource_ids:
+        return set(), set()
+    bookmarks = await db.scalars(
+        select(ResourceBookmark.resource_id).where(
+            ResourceBookmark.user_id == user.id,
+            ResourceBookmark.resource_id.in_(resource_ids),
+        )
+    )
+    progress = await db.scalars(
+        select(ResourceProgress.resource_id).where(
+            ResourceProgress.user_id == user.id,
+            ResourceProgress.resource_id.in_(resource_ids),
+            ResourceProgress.completed.is_(True),
+        )
+    )
+    return set(bookmarks.all()), set(progress.all())
+
+
+@router.get("", response_model=list[ResourceResponse])
+async def list_resources(
+    db: DB,
+    current_user: CurrentUser,
+    q: str | None = None,
+    level: str | None = None,
+    subject: str | None = None,
+    resource_type: str | None = None,
+) -> list[ResourceResponse]:
+    query = select(Resource).where(Resource.is_active.is_(True)).order_by(Resource.created_at.desc()).limit(100)
+    if q:
+        query = query.where(Resource.title.ilike(f"%{q.strip()}%"))
+    if level:
+        query = query.where(Resource.level == level)
+    if subject:
+        query = query.where(Resource.subject == subject)
+    if resource_type:
+        query = query.where(Resource.resource_type == resource_type)
+    resources = list((await db.scalars(query)).all())
+    bookmark_ids, completed_ids = await user_resource_state(db, current_user, [resource.id for resource in resources])
+    return [to_response(resource, bookmark_ids, completed_ids) for resource in resources]
+
+
+@router.post("", response_model=ResourceResponse, status_code=status.HTTP_201_CREATED)
+async def create_resource(payload: ResourceCreate, db: DB, current_user: User = ContentPublisher) -> ResourceResponse:
+    resource = Resource(**payload.model_dump(), created_by=current_user.id)
+    db.add(resource)
+    await db.commit()
+    await db.refresh(resource)
+    return to_response(resource, set(), set())
+
+
+@router.post("/upload", response_model=ResourceResponse, status_code=status.HTTP_201_CREATED)
+async def upload_resource(
+    db: DB,
+    current_user: User = ContentPublisher,
+    file: UploadFile | None = File(default=None),  # noqa: B008
+    title: str = Form(..., min_length=2, max_length=220),
+    description: str | None = Form(default=None),
+    level: str = Form(..., min_length=2, max_length=40),
+    group_name: str | None = Form(default=None),
+    subject: str = Form(..., min_length=2, max_length=120),
+    chapter: str | None = Form(default=None),
+    resource_type: str = Form(..., min_length=2, max_length=60),
+    attempt: str | None = Form(default=None),
+    year: int | None = Form(default=None),
+    source: str | None = Form(default=None),
+    official_icai: bool = Form(default=False),
+) -> ResourceResponse:
+    if file is not None:
+        extension = Path(file.filename or "").suffix.lower()
+        if extension not in ALLOWED_EXTENSIONS or (file.content_type and file.content_type not in ALLOWED_MIME_TYPES):
+            raise HTTPException(status_code=415, detail="File type is not permitted")
+        content = await file.read(MAX_UPLOAD_BYTES + 1)
+        if len(content) > MAX_UPLOAD_BYTES:
+            raise HTTPException(status_code=413, detail="File is larger than the 15 MB limit")
+    else:
+        content = None
+        extension = ""
+
+    resource = Resource(
+        title=title.strip(),
+        description=description,
+        level=level,
+        group_name=group_name,
+        subject=subject,
+        chapter=chapter,
+        resource_type=resource_type,
+        attempt=attempt,
+        year=year,
+        source=source,
+        official_icai=official_icai,
+        created_by=current_user.id,
+        file_name=Path(file.filename or "").name if file else None,
+        file_size=len(content) if content is not None else None,
+        mime_type=file.content_type if file else None,
+    )
+    db.add(resource)
+    await db.flush()
+
+    if content is not None and file is not None:
+        safe_name = Path(file.filename or f"resource{extension}").name.replace(" ", "-")
+        relative_key = f"resources/{resource.id}/{uuid4().hex}-{safe_name}"
+        storage_path = Path("data/uploads") / relative_key
+        storage_path.parent.mkdir(parents=True, exist_ok=True)
+        storage_path.write_bytes(content)
+        resource.file_key = relative_key
+
+    await db.commit()
+    await db.refresh(resource)
+    return to_response(resource, set(), set())
+
+
+@router.post("/{resource_id}/bookmark", response_model=MessageResponse)
+async def toggle_bookmark(resource_id: UUID, db: DB, current_user: CurrentUser) -> MessageResponse:
+    resource = await db.get(Resource, resource_id)
+    if not resource or not resource.is_active:
+        raise HTTPException(status_code=404, detail="Resource not found")
+    bookmark = await db.scalar(
+        select(ResourceBookmark).where(
+            ResourceBookmark.user_id == current_user.id,
+            ResourceBookmark.resource_id == resource_id,
+        )
+    )
+    if bookmark:
+        await db.delete(bookmark)
+        message = "Removed from your library"
+    else:
+        db.add(ResourceBookmark(user_id=current_user.id, resource_id=resource_id))
+        message = "Saved to your library"
+    await db.commit()
+    return MessageResponse(message=message)
+
+
+@router.patch("/{resource_id}/progress", response_model=MessageResponse)
+async def update_progress(
+    resource_id: UUID,
+    payload: ResourceProgressRequest,
+    db: DB,
+    current_user: CurrentUser,
+) -> MessageResponse:
+    resource = await db.get(Resource, resource_id)
+    if not resource or not resource.is_active:
+        raise HTTPException(status_code=404, detail="Resource not found")
+    progress = await db.scalar(
+        select(ResourceProgress).where(
+            ResourceProgress.user_id == current_user.id,
+            ResourceProgress.resource_id == resource_id,
+        )
+    )
+    if not progress:
+        progress = ResourceProgress(user_id=current_user.id, resource_id=resource_id)
+        db.add(progress)
+    progress.completed = payload.completed
+    progress.last_viewed_at = datetime.now(UTC)
+    await db.commit()
+    return MessageResponse(message="Progress updated")
