@@ -24,7 +24,17 @@ class Settings(BaseSettings):
     s3_secret_access_key: str | None = None
     upload_max_bytes: int = 15 * 1024 * 1024
 
-    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore", case_sensitive=False)
+    # CORS_ORIGINS is intentionally accepted as a comma-separated environment
+    # variable (for example, "http://localhost:3000,https://app.example.com").
+    # Disable pydantic-settings' automatic JSON decoding so the validator below
+    # can normalize that deployment-friendly format before validation.
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        extra="ignore",
+        case_sensitive=False,
+        enable_decoding=False,
+    )
 
     @field_validator("cors_origins", mode="before")
     @classmethod
