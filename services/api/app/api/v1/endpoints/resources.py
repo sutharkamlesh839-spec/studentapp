@@ -2,18 +2,20 @@ from datetime import UTC, datetime
 from pathlib import Path
 from uuid import UUID, uuid4
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile, status
 from sqlalchemy import select
 
 from app.api.deps import DB, CurrentUser, require_permission
+from app.core.config import settings
 from app.models.resources import Resource, ResourceBookmark, ResourceProgress
 from app.models.user import User
 from app.schemas.common import MessageResponse
 from app.schemas.resources import ResourceCreate, ResourceProgressRequest, ResourceResponse
+from app.services.audit_service import record_audit
+from app.services.storage import storage
 
 router = APIRouter(prefix="/resources", tags=["resources"])
 ContentPublisher = Depends(require_permission("content.publish"))
-MAX_UPLOAD_BYTES = 15 * 1024 * 1024
 ALLOWED_EXTENSIONS = {".pdf", ".png", ".jpg", ".jpeg", ".webp", ".doc", ".docx", ".xls", ".xlsx"}
 ALLOWED_MIME_TYPES = {
     "application/pdf",
@@ -94,9 +96,24 @@ async def list_resources(
 
 
 @router.post("", response_model=ResourceResponse, status_code=status.HTTP_201_CREATED)
-async def create_resource(payload: ResourceCreate, db: DB, current_user: User = ContentPublisher) -> ResourceResponse:
+async def create_resource(
+    payload: ResourceCreate,
+    request: Request,
+    db: DB,
+    current_user: User = ContentPublisher,
+) -> ResourceResponse:
     resource = Resource(**payload.model_dump(), created_by=current_user.id)
     db.add(resource)
+    await db.flush()
+    await record_audit(
+        db,
+        actor_id=current_user.id,
+        action="resource.created",
+        resource_type="resource",
+        resource_id=str(resource.id),
+        after_state={"title": resource.title, "resource_type": resource.resource_type},
+        request_id=request.headers.get("x-request-id"),
+    )
     await db.commit()
     await db.refresh(resource)
     return to_response(resource, set(), set())
@@ -104,6 +121,7 @@ async def create_resource(payload: ResourceCreate, db: DB, current_user: User = 
 
 @router.post("/upload", response_model=ResourceResponse, status_code=status.HTTP_201_CREATED)
 async def upload_resource(
+    request: Request,
     db: DB,
     current_user: User = ContentPublisher,
     file: UploadFile | None = File(default=None),  # noqa: B008
@@ -123,9 +141,9 @@ async def upload_resource(
         extension = Path(file.filename or "").suffix.lower()
         if extension not in ALLOWED_EXTENSIONS or (file.content_type and file.content_type not in ALLOWED_MIME_TYPES):
             raise HTTPException(status_code=415, detail="File type is not permitted")
-        content = await file.read(MAX_UPLOAD_BYTES + 1)
-        if len(content) > MAX_UPLOAD_BYTES:
-            raise HTTPException(status_code=413, detail="File is larger than the 15 MB limit")
+        content = await file.read(settings.upload_max_bytes + 1)
+        if len(content) > settings.upload_max_bytes:
+            raise HTTPException(status_code=413, detail="File is larger than the configured upload limit")
     else:
         content = None
         extension = ""
@@ -153,11 +171,18 @@ async def upload_resource(
     if content is not None and file is not None:
         safe_name = Path(file.filename or f"resource{extension}").name.replace(" ", "-")
         relative_key = f"resources/{resource.id}/{uuid4().hex}-{safe_name}"
-        storage_path = Path("data/uploads") / relative_key
-        storage_path.parent.mkdir(parents=True, exist_ok=True)
-        storage_path.write_bytes(content)
+        await storage.put(relative_key, content, file.content_type)
         resource.file_key = relative_key
 
+    await record_audit(
+        db,
+        actor_id=current_user.id,
+        action="resource.uploaded",
+        resource_type="resource",
+        resource_id=str(resource.id),
+        after_state={"title": resource.title, "file_name": resource.file_name, "file_size": resource.file_size},
+        request_id=request.headers.get("x-request-id"),
+    )
     await db.commit()
     await db.refresh(resource)
     return to_response(resource, set(), set())

@@ -42,6 +42,7 @@ class AuthService:
             roles=roles,
             student_level=student.level if student else None,
             student_group=student.group_name if student else None,
+            student_attempt=student.current_attempt if student else None,
         )
 
     @staticmethod

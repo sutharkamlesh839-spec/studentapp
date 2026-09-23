@@ -1,6 +1,7 @@
 from functools import lru_cache
+from typing import Literal
 
-from pydantic import field_validator
+from pydantic import field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -14,11 +15,14 @@ class Settings(BaseSettings):
     access_token_minutes: int = 15
     refresh_token_days: int = 30
     cors_origins: list[str] = ["http://localhost:3000"]
+    storage_driver: Literal["local", "s3"] = "local"
+    local_storage_path: str = "data/uploads"
     s3_endpoint_url: str | None = None
     s3_bucket: str | None = None
     s3_region: str = "auto"
     s3_access_key_id: str | None = None
     s3_secret_access_key: str | None = None
+    upload_max_bytes: int = 15 * 1024 * 1024
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore", case_sensitive=False)
 
@@ -28,6 +32,14 @@ class Settings(BaseSettings):
         if isinstance(value, str):
             return [origin.strip() for origin in value.split(",") if origin.strip()]
         return value
+
+    @model_validator(mode="after")
+    def validate_production_configuration(self) -> "Settings":
+        if self.app_env == "production" and self.jwt_secret_key.startswith("development-only"):
+            raise ValueError("JWT_SECRET_KEY must be replaced in production")
+        if self.storage_driver == "s3" and not self.s3_bucket:
+            raise ValueError("S3_BUCKET is required when STORAGE_DRIVER=s3")
+        return self
 
 
 @lru_cache

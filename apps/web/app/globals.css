@@ -276,3 +276,5 @@ body.custom-cursor-active, body.custom-cursor-active * { cursor: none !important
 .cursor-ring span { opacity: 0; font-size: 7px; font-weight: 800; letter-spacing: .07em; transition: opacity .16s ease; }
 .cursor-ring-labelled { top: -30px; left: -30px; width: 60px; height: 60px; border-color: var(--bronze-600); background: rgba(244,232,218,.42); }
 .cursor-ring-labelled span { opacity: 1; }
+.resource-card-actions { display: inline-flex; align-items: center; gap: 9px; }.resource-card-actions button { display: inline-flex; align-items: center; gap: 3px; }
+.dashboard-empty-copy { display: flex; align-items: center; gap: 10px; padding: 17px 0; color: var(--bronze-700); }.dashboard-empty-copy span { display: flex; flex-direction: column; gap: 4px; }.dashboard-empty-copy strong { color: var(--text-700); font-size: 10px; }.dashboard-empty-copy small { color: var(--text-400); font-size: 9px; }

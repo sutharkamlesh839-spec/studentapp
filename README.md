@@ -11,16 +11,18 @@ A production-oriented foundation for a Chartered Accountancy student operating s
 - `docs/architecture.md` — product architecture, schema plan, permissions, roadmap and implementation sequence
 - `infra` — deployment/runtime configuration (added with environment integration)
 
-## Run the Phase 0 web shell
+## Run the web app
+
+The repository root intentionally has no `npm run dev` script. Run the frontend from `apps/web`:
 
 ```powershell
 cd apps/web
 npm install
-Copy-Item .env.example .env.local
+Copy-Item .env.example .env.local -Force
 npm run dev
 ```
 
-Open `http://localhost:3000`. The shell starts in development preview mode when `NEXT_PUBLIC_ENABLE_DEMO=true`; no production API data is written or implied by this fixture. Set it to `false` when running against the API.
+Open `http://localhost:3000`. Local `.env.local` uses `http://localhost:8000` for the API. The shell starts in preview mode when `NEXT_PUBLIC_ENABLE_DEMO=true`; set it to `false` when running against the real dashboard API.
 
 ## Run the API
 
@@ -50,7 +52,13 @@ pytest
 alembic check
 ```
 
+## Deployment
+
+See `docs/deployment.md` for Windows PowerShell, Docker Compose, Vercel, Render/Railway, PostgreSQL, Redis and S3/R2 instructions. A production-like stack is available at `infra/docker-compose.production.yml`.
+
 ## Status
 
-- **Phase 0:** foundation scaffold implemented.
-- **Next:** run the database migration/integration verification, then start Phase 1 resources and search as documented in `docs/architecture.md`.
+- **Foundation:** authentication, refresh sessions, RBAC, audit/session models, responsive shell and protected login gate implemented.
+- **Working vertical slice:** resources API, PostgreSQL/SQLite migration, admin upload, private file download, bookmarks and completion progress.
+- **Workspace routes:** student, faculty and admin navigation routes are active with real interactions; remaining domains are not described as production-complete until their persistence APIs and tests are implemented.
+- **Next:** extend the same verified vertical-slice pattern to MCQ, tests, evaluation, queries and notifications.

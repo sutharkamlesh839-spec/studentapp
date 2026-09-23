@@ -44,6 +44,7 @@ class UserResponse(APIModel):
     roles: list[str]
     student_level: str | None = None
     student_group: str | None = None
+    student_attempt: str | None = None
 
 
 class AuthResponse(APIModel):

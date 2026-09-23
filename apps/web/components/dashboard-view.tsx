@@ -1,8 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Icon } from "@/components/icon";
+import { apiFetch } from "@/lib/api-client";
 import type { DashboardSnapshot, FocusTask } from "@/lib/types";
+
+type DashboardSummaryResponse = {
+  user: { full_name: string; student_level?: string | null; student_group?: string | null; student_attempt?: string | null };
+};
 
 const taskIcon: Record<FocusTask["kind"], string> = {
   lesson: "book-open",
@@ -11,8 +16,34 @@ const taskIcon: Record<FocusTask["kind"], string> = {
 };
 
 export function DashboardView({ snapshot }: { snapshot: DashboardSnapshot }) {
-  const [tasks, setTasks] = useState(snapshot.focusTasks);
+  const [activeSnapshot, setActiveSnapshot] = useState(snapshot);
+  const [tasks, setTasks] = useState(activeSnapshot.focusTasks);
   const [examMode, setExamMode] = useState(false);
+
+  useEffect(() => {
+    if (process.env.NEXT_PUBLIC_ENABLE_DEMO !== "false") return;
+    apiFetch<DashboardSummaryResponse>("/api/v1/dashboard/summary").then((response) => {
+      const liveSnapshot: DashboardSnapshot = {
+        student: {
+          name: response.user.full_name,
+          level: response.user.student_level ?? "CA student",
+          attempt: response.user.student_attempt ?? "Set your current attempt in Profile",
+          examDate: "",
+          daysLeft: 0,
+        },
+        focusTasks: [],
+        subjects: [],
+        metrics: [
+          { label: "Preparation score", value: "—", detail: "Complete activity to calculate", trend: "Awaiting activity", tone: "violet" },
+          { label: "Syllabus covered", value: "—", detail: "Add your first chapter", trend: "Not started", tone: "mint" },
+          { label: "MCQ accuracy", value: "—", detail: "No attempts yet", trend: "Not started", tone: "coral" },
+          { label: "Study streak", value: "0 days", detail: "Start your first session", trend: "Ready when you are", tone: "blue" },
+        ],
+      };
+      setActiveSnapshot(liveSnapshot);
+      setTasks([]);
+    }).catch(() => undefined);
+  }, []);
 
   const completeTask = (index: number) => {
     setTasks((current) => current.map((task, taskIndex) => taskIndex === index ? { ...task, complete: !task.complete } : task));
@@ -23,7 +54,7 @@ export function DashboardView({ snapshot }: { snapshot: DashboardSnapshot }) {
       <section className="welcome-row">
         <div>
           <div className="eyebrow eyebrow-with-dot"><span className="live-dot" /> Monday, 23 September 2026</div>
-          <h1>Good morning, {snapshot.student.name}<span className="wave">✦</span></h1>
+          <h1>Good morning, {activeSnapshot.student.name}<span className="wave">✦</span></h1>
           <p className="page-subtitle">A little progress today compounds into a lot of confidence later.</p>
         </div>
         <div className="welcome-actions">
@@ -39,8 +70,8 @@ export function DashboardView({ snapshot }: { snapshot: DashboardSnapshot }) {
       <section className="attempt-banner">
         <div className="attempt-copy">
           <div className="attempt-kicker"><span className="attempt-status" /> Your current attempt</div>
-          <h2>{snapshot.student.level} <span>·</span> Group 1</h2>
-          <p>{snapshot.student.attempt} <span className="banner-divider" /> Exam starts in <strong>{snapshot.student.daysLeft} days</strong></p>
+          <h2>{activeSnapshot.student.level} <span>·</span> Group 1</h2>
+          <p>{activeSnapshot.student.attempt} <span className="banner-divider" /> Exam starts in <strong>{activeSnapshot.student.daysLeft} days</strong></p>
         </div>
         <div className="attempt-progress-wrap">
           <div className="progress-ring" style={{ background: "conic-gradient(#c7a8ff 0deg 230deg, rgba(255,255,255,.12) 230deg 360deg)" }}><div><strong>64%</strong><span>covered</span></div></div>
@@ -50,7 +81,7 @@ export function DashboardView({ snapshot }: { snapshot: DashboardSnapshot }) {
       </section>
 
       <section className="metric-grid" aria-label="Preparation overview">
-        {snapshot.metrics.map((metric) => (
+        {activeSnapshot.metrics.map((metric) => (
           <article className={`metric-card metric-${metric.tone}`} key={metric.label}>
             <div className="metric-top"><span>{metric.label}</span><span className="metric-menu"><Icon name="more-horizontal" size={16} /></span></div>
             <div className="metric-value-row"><strong>{metric.value}</strong>{metric.label === "Preparation score" ? <span className="metric-unit">/100</span> : null}</div>
@@ -66,7 +97,7 @@ export function DashboardView({ snapshot }: { snapshot: DashboardSnapshot }) {
             <button className="text-button">View plan <Icon name="arrow-right" size={14} /></button>
           </div>
           <div className="task-list">
-            {tasks.map((task, index) => (
+            {tasks.length ? tasks.map((task, index) => (
               <button className={`task-row ${task.complete ? "task-complete" : ""}`} key={task.title} onClick={() => completeTask(index)}>
                 <span className={`task-check ${task.complete ? "task-check-done" : ""}`}>{task.complete ? <Icon name="check" size={13} /> : null}</span>
                 <span className="task-type-icon"><Icon name={taskIcon[task.kind]} size={16} /></span>
@@ -74,7 +105,7 @@ export function DashboardView({ snapshot }: { snapshot: DashboardSnapshot }) {
                 <span className="task-duration"><Icon name="clock-3" size={13} /> {task.duration}</span>
                 <Icon name="arrow-right" size={15} />
               </button>
-            ))}
+            )) : <div className="dashboard-empty-copy"><Icon name="calendar-days" size={18} /><span><strong>Your plan is ready for your first task.</strong><small>Open Study Planner to add today’s focus block.</small></span></div>}
           </div>
           <button className="add-task-row"><Icon name="plus" size={15} /> Add another task</button>
         </section>
@@ -82,12 +113,12 @@ export function DashboardView({ snapshot }: { snapshot: DashboardSnapshot }) {
         <section className="dashboard-card syllabus-card">
           <div className="card-heading"><div><div className="section-kicker">Syllabus pulse</div><h2>Keep the balance</h2></div><button className="icon-button"><Icon name="more-horizontal" size={17} /></button></div>
           <div className="subject-list">
-            {snapshot.subjects.map((subject) => (
+            {activeSnapshot.subjects.length ? activeSnapshot.subjects.map((subject) => (
               <div className="subject-row" key={subject.name}>
                 <div className={`subject-badge subject-${subject.tone}`}>{subject.shortName}</div>
                 <div className="subject-info"><div><strong>{subject.name}</strong><span>{subject.percent}%</span></div><div className="progress-track"><span className={`progress-fill fill-${subject.tone}`} style={{ width: `${subject.percent}%` }} /></div><small>{subject.meta}</small></div>
               </div>
-            ))}
+            )) : <div className="dashboard-empty-copy"><Icon name="chart-no-axes-combined" size={18} /><span><strong>Your syllabus pulse will appear here.</strong><small>Complete your first chapter to start tracking progress.</small></span></div>}
           </div>
           <button className="outline-button">Open syllabus tracker <Icon name="arrow-up-right" size={14} /></button>
         </section>
