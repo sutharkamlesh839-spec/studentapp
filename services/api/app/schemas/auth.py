@@ -17,6 +17,13 @@ class RegisterRequest(APIModel):
     group_name: str | None = Field(default=None, max_length=40)
     current_attempt: str | None = Field(default=None, max_length=50)
 
+    @field_validator("mobile", mode="before")
+    @classmethod
+    def blank_mobile_is_optional(cls, value: str | None) -> str | None:
+        if isinstance(value, str) and not value.strip():
+            return None
+        return value
+
     @field_validator("full_name")
     @classmethod
     def name_must_not_be_blank(cls, value: str) -> str:

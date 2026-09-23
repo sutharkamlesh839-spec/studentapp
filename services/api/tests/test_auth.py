@@ -36,7 +36,12 @@ async def client():
 async def test_registration_login_and_refresh(client: AsyncClient) -> None:
     registration = await client.post(
         "/api/v1/auth/register",
-        json={"full_name": "Priya Shah", "email": "priya@example.com", "password": "SecurePass123"},
+        json={
+            "full_name": "Priya Shah",
+            "email": "priya@example.com",
+            "mobile": "",
+            "password": "SecurePass123",
+        },
     )
     assert registration.status_code == 201
     assert registration.json()["user"]["roles"] == ["student"]
