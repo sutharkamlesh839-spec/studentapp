@@ -1,0 +1,23 @@
+# JavaScript
+node_modules/
+.next/
+out/
+*.tsbuildinfo
+.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.venv/
+*.egg-info/
+
+# Local runtime data
+services/api/data/
+services/api/uploads/
+coverage/
+.DS_Store
