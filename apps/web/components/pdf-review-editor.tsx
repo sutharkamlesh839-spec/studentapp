@@ -41,11 +41,45 @@ export function PdfReviewEditor({ paperId, title, onSaved, onClose }: Props) {
   const pageFrameRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
+    const controller = new AbortController();
     let objectUrl: string | null = null;
-    fetch(`${API_BASE_URL}/api/v1/papers/${paperId}/download`, { credentials: "include" })
-      .then(async (response) => { if (!response.ok) throw new Error("The submitted PDF could not be opened."); const data = await response.arrayBuffer(); setPdfData(data); objectUrl = URL.createObjectURL(new Blob([data], { type: "application/pdf" })); setFileUrl(objectUrl); })
-      .catch((error) => setStatus(error instanceof Error ? error.message : "The submitted PDF could not be opened."));
-    return () => { if (objectUrl) URL.revokeObjectURL(objectUrl); };
+
+    const openSubmittedPdf = async () => {
+      try {
+        const response = await fetch(`${API_BASE_URL}/api/v1/papers/${paperId}/download`, { credentials: "include", signal: controller.signal });
+        if (!response.ok) throw new Error("The submitted PDF could not be opened.");
+        const data = await response.arrayBuffer();
+
+        // Do not hand an unverified response to the rendered PDF.js document.
+        // Older demo records and mislabelled uploads can start with %PDF- while
+        // still being plain text. Validate with PDF.js first so its
+        // InvalidPDFException becomes an actionable editor message instead of
+        // a runtime overlay.
+        const bytes = new Uint8Array(data);
+        const tail = new TextDecoder().decode(bytes.slice(Math.max(0, bytes.length - 2048)));
+        if (new TextDecoder().decode(bytes.slice(0, 5)) !== "%PDF-" || !tail.includes("startxref") || !tail.includes("%%EOF")) {
+          throw new Error("The submitted file is not a readable PDF. Ask the student to upload the original PDF again.");
+        }
+        const loadingTask = pdfjs.getDocument({ data: data.slice(0) });
+        try {
+          await loadingTask.promise;
+        } catch {
+          throw new Error("The submitted file is not a readable PDF. Ask the student to upload the original PDF again.");
+        } finally {
+          await loadingTask.destroy();
+        }
+        if (controller.signal.aborted) return;
+        setPdfData(data);
+        objectUrl = URL.createObjectURL(new Blob([data], { type: "application/pdf" }));
+        setFileUrl(objectUrl);
+      } catch (error) {
+        if (controller.signal.aborted) return;
+        setStatus(error instanceof Error ? error.message : "The submitted PDF could not be opened.");
+      }
+    };
+
+    void openSubmittedPdf();
+    return () => { controller.abort(); if (objectUrl) URL.revokeObjectURL(objectUrl); };
   }, [paperId]);
 
   const drawOverlay = useCallback(() => {

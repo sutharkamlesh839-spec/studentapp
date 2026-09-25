@@ -28,6 +28,7 @@ from app.schemas.ops import (
     VideoResponse,
 )
 from app.services.audit_service import record_audit
+from app.services.pdf_validation import has_pdf_structure
 from app.services.storage import storage
 
 router = APIRouter(tags=["operations"])
@@ -191,8 +192,8 @@ async def upload_paper(
     content = await file.read(settings.upload_max_bytes + 1)
     if len(content) > settings.upload_max_bytes:
         raise HTTPException(status_code=413, detail="File is larger than the configured upload limit")
-    if not content.startswith(b"%PDF-"):
-        raise HTTPException(status_code=415, detail="Paper must be a valid PDF")
+    if not has_pdf_structure(content):
+        raise HTTPException(status_code=415, detail="Paper must be a readable PDF document")
     item = PaperSubmission(
         student_id=current_user.id,
         title=title.strip(),
@@ -258,8 +259,8 @@ async def upload_annotated_paper(
     content = await file.read(settings.upload_max_bytes + 1)
     if len(content) > settings.upload_max_bytes:
         raise HTTPException(status_code=413, detail="File is larger than the configured upload limit")
-    if not content.startswith(b"%PDF-"):
-        raise HTTPException(status_code=415, detail="Annotated review must be a valid PDF")
+    if not has_pdf_structure(content):
+        raise HTTPException(status_code=415, detail="Annotated review must be a readable PDF document")
     if (marks is None) != (feedback is None):
         raise HTTPException(status_code=422, detail="Marks and feedback must be provided together")
     paper.annotated_file_key = f"papers/{paper.id}/review-{uuid4().hex}.pdf"
