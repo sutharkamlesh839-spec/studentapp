@@ -28,11 +28,12 @@ Open `http://localhost:3000`. Local `.env.local` uses `http://localhost:8000` fo
 
 ```powershell
 cd services/api
-py -3.11 -m venv .venv
+py -3.14 -m venv .venv
 .\.venv\Scripts\Activate.ps1
-pip install -e ".[dev]"
+python -m pip install -e ".[dev]"
 Copy-Item .env.example .env
-uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+python -m alembic upgrade head
+python -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
 The API exposes `GET /health` and versioned routes under `/api/v1`. For a real integration run, set `DATABASE_URL` to PostgreSQL and run `alembic upgrade head`; SQLite is available for quick local API checks only.
@@ -60,5 +61,6 @@ See `docs/deployment.md` for Windows PowerShell, Docker Compose, Vercel, Render/
 
 - **Foundation:** authentication, refresh sessions, RBAC, audit/session models, responsive shell and protected login gate implemented.
 - **Working vertical slice:** resources API, PostgreSQL/SQLite migration, admin upload, private file download, bookmarks and completion progress.
-- **Workspace routes:** student, faculty and admin navigation routes are active with real interactions; remaining domains are not described as production-complete until their persistence APIs and tests are implemented.
-- **Next:** extend the same verified vertical-slice pattern to MCQ, tests, evaluation, queries and notifications.
+- **Learning vertical slice:** persisted MCQs with answer history and mistakes, syllabus tracking, study planner, revision queue, test publishing/attempts, faculty queries, notifications and analytics APIs are implemented with frontend connections for the student/admin flows.
+- **Still in progress:** faculty paper evaluation, student/faculty management screens, videos, AI, career/articleship and ICAI update integrations need their own persisted APIs, permissions and verification before being called production-complete.
+- **Next:** harden the learning slice against PostgreSQL/Redis/S3, then complete evaluation, faculty operations and supported external integrations.

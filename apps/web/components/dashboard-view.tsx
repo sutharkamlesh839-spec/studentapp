@@ -7,6 +7,10 @@ import type { DashboardSnapshot, FocusTask } from "@/lib/types";
 
 type DashboardSummaryResponse = {
   user: { full_name: string; student_level?: string | null; student_group?: string | null; student_attempt?: string | null };
+  preparation_score?: number | null;
+  syllabus_completion?: number | null;
+  next_actions: string[];
+  data_status: string;
 };
 
 const taskIcon: Record<FocusTask["kind"], string> = {
@@ -34,10 +38,10 @@ export function DashboardView({ snapshot }: { snapshot: DashboardSnapshot }) {
         focusTasks: [],
         subjects: [],
         metrics: [
-          { label: "Preparation score", value: "—", detail: "Complete activity to calculate", trend: "Awaiting activity", tone: "violet" },
-          { label: "Syllabus covered", value: "—", detail: "Add your first chapter", trend: "Not started", tone: "mint" },
-          { label: "MCQ accuracy", value: "—", detail: "No attempts yet", trend: "Not started", tone: "coral" },
-          { label: "Study streak", value: "0 days", detail: "Start your first session", trend: "Ready when you are", tone: "blue" },
+          { label: "Preparation score", value: response.preparation_score === null || response.preparation_score === undefined ? "—" : String(response.preparation_score), detail: response.data_status === "active" ? "Based on your activity" : "Complete activity to calculate", trend: response.data_status === "active" ? "Live score" : "Awaiting activity", tone: "violet" },
+          { label: "Syllabus covered", value: response.syllabus_completion === null || response.syllabus_completion === undefined ? "—" : `${Math.round(response.syllabus_completion)}%`, detail: response.syllabus_completion === null ? "Add your first chapter" : "Persisted chapter progress", trend: response.syllabus_completion === null ? "Not started" : "Live progress", tone: "mint" },
+          { label: "Next action", value: response.next_actions.length ? "Ready" : "—", detail: response.next_actions[0] ?? "No action yet", trend: response.next_actions.length ? "Personalised" : "Not started", tone: "coral" },
+          { label: "Study streak", value: "0 days", detail: "Session tracking is next", trend: "Ready when you are", tone: "blue" },
         ],
       };
       setActiveSnapshot(liveSnapshot);

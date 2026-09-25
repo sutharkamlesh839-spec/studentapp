@@ -1,5 +1,16 @@
 # Import every model here so Alembic sees one complete metadata registry.
 from app.models.audit import AuditLog
+from app.models.learning import (
+    MCQQuestion,
+    MCQResponse,
+    Notification,
+    PracticeTest,
+    RevisionItem,
+    StudyPlanTask,
+    SupportQuery,
+    SyllabusItem,
+    TestAttempt,
+)
 from app.models.profiles import FacultyProfile, StudentProfile
 from app.models.rbac import Permission, Role, role_permissions, user_roles
 from app.models.resources import Resource, ResourceBookmark, ResourceProgress
@@ -9,6 +20,15 @@ from app.models.user import User
 __all__ = [
     "AuditLog",
     "FacultyProfile",
+    "MCQQuestion",
+    "MCQResponse",
+    "Notification",
+    "PracticeTest",
+    "RevisionItem",
+    "StudyPlanTask",
+    "SyllabusItem",
+    "SupportQuery",
+    "TestAttempt",
     "Permission",
     "RefreshToken",
     "Resource",
