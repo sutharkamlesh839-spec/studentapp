@@ -25,6 +25,25 @@ async function send(path: string, init?: RequestInit): Promise<Response> {
   });
 }
 
+function formatApiDetail(detail: unknown): string {
+  if (typeof detail === "string") return detail;
+  if (Array.isArray(detail)) {
+    const messages = detail.map((item) => {
+      if (!item || typeof item !== "object") return String(item);
+      const value = item as { msg?: unknown; loc?: unknown[] };
+      const message = typeof value.msg === "string" ? value.msg : "Invalid value";
+      const location = Array.isArray(value.loc) ? value.loc.filter((part) => part !== "body").join(" → ") : "";
+      return location ? `${location}: ${message}` : message;
+    });
+    return messages.filter(Boolean).join(". ");
+  }
+  if (detail && typeof detail === "object" && "message" in detail) {
+    const message = (detail as { message?: unknown }).message;
+    if (typeof message === "string") return message;
+  }
+  return "Please check the submitted details and try again.";
+}
+
 export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
   let response = await send(path, init);
 
@@ -38,8 +57,8 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> 
   if (!response.ok) {
     let message = "Something went wrong. Please try again.";
     try {
-      const body = (await response.json()) as { detail?: string };
-      message = body.detail ?? message;
+      const body = (await response.json()) as { detail?: unknown };
+      if (body.detail !== undefined) message = formatApiDetail(body.detail);
     } catch {
       // The API may return an empty body for a gateway error.
     }

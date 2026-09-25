@@ -6,13 +6,18 @@ import { Icon } from "@/components/icon";
 import { apiFetch, ApiError } from "@/lib/api-client";
 
 export default function RegisterPage() {
-  const [form, setForm] = useState({ full_name: "", email: "", mobile: "", password: "", level: "CA Intermediate", group_name: "Group 1", current_attempt: "May 2027" });
+  const [form, setForm] = useState({ full_name: "", email: "", password: "", level: "CA Intermediate", group_name: "Group 1", current_attempt: "May 2027" });
   const [status, setStatus] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const update = (key: keyof typeof form, value: string) => setForm((current) => ({ ...current, [key]: value }));
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault(); setStatus(null); setLoading(true);
+    event.preventDefault(); setStatus(null);
+    if (form.password.length < 8 || form.password.toLowerCase() === form.password || form.password.toUpperCase() === form.password) {
+      setStatus("Password must be 8+ characters with upper and lower case letters.");
+      return;
+    }
+    setLoading(true);
     try { await apiFetch("/api/v1/auth/register", { method: "POST", body: JSON.stringify(form) }); window.location.assign("/"); }
     catch (error) { setStatus(error instanceof ApiError ? error.message : "Could not reach the API. Try again."); }
     finally { setLoading(false); }
