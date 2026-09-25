@@ -278,3 +278,29 @@ body.custom-cursor-active, body.custom-cursor-active * { cursor: none !important
 .cursor-ring-labelled span { opacity: 1; }
 .resource-card-actions { display: inline-flex; align-items: center; gap: 9px; }.resource-card-actions button { display: inline-flex; align-items: center; gap: 3px; }
 .dashboard-empty-copy { display: flex; align-items: center; gap: 10px; padding: 17px 0; color: var(--bronze-700); }.dashboard-empty-copy span { display: flex; flex-direction: column; gap: 4px; }.dashboard-empty-copy strong { color: var(--text-700); font-size: 10px; }.dashboard-empty-copy small { color: var(--text-400); font-size: 9px; }
+
+/* Faculty PDF review workspace */
+.pdf-review-editor { display: flex; flex-direction: column; gap: 16px; padding: 20px; border: 1px solid var(--line); border-radius: 16px; background: #fff; box-shadow: 0 18px 50px rgba(54, 36, 111, .10); }
+.pdf-review-header { display: flex; justify-content: space-between; gap: 18px; align-items: flex-start; }
+.pdf-review-header h2 { margin: 6px 0; font-size: 22px; }
+.pdf-review-header p { margin: 0; color: var(--ink-soft); font-size: 11px; }
+.pdf-review-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 8px; border-radius: 11px; background: #f7f4ff; }
+.pdf-review-toolbar button, .pdf-page-control button { display: inline-flex; align-items: center; gap: 6px; min-height: 32px; padding: 0 10px; border: 1px solid #e4ddf7; border-radius: 7px; color: #5b4a8d; background: #fff; font-size: 10px; font-weight: 700; cursor: pointer; }
+.pdf-review-toolbar button:hover, .pdf-review-toolbar button.tool-active { color: #fff; border-color: #7050d7; background: #7050d7; }
+.pdf-page-control { display: inline-flex; align-items: center; gap: 8px; margin-left: auto; }
+.pdf-page-control button:disabled { opacity: .45; cursor: not-allowed; }
+.pdf-page-control strong { color: var(--ink-soft); font-size: 10px; }
+.pdf-page-shell { display: flex; justify-content: center; overflow: auto; min-height: 360px; padding: 18px; border-radius: 11px; background: #ebe8f2; }
+.pdf-page-frame { position: relative; width: min(760px, 100%); line-height: 0; background: #fff; box-shadow: 0 8px 22px rgba(29, 20, 58, .18); }
+.pdf-page-frame canvas:first-child { display: block; max-width: 100%; height: auto !important; }
+.pdf-annotation-canvas { position: absolute; inset: 0; z-index: 3; width: 100%; height: 100%; cursor: crosshair; touch-action: none; }
+.pdf-loading { display: grid; place-items: center; min-height: 260px; width: 100%; color: var(--ink-soft); font-size: 12px; }
+.pdf-review-footer { display: flex; flex-wrap: wrap; align-items: end; gap: 12px; padding-top: 4px; }
+.pdf-review-footer label { display: flex; flex-direction: column; gap: 6px; color: var(--ink-soft); font-size: 10px; font-weight: 700; }
+.pdf-review-footer input, .pdf-review-footer textarea { min-height: 38px; padding: 9px 10px; border: 1px solid var(--line-strong); border-radius: 8px; outline: 0; font: inherit; font-size: 11px; }
+.pdf-review-footer input:focus, .pdf-review-footer textarea:focus { border-color: #8c70df; box-shadow: 0 0 0 3px #f0ecff; }
+.pdf-feedback-field { flex: 1 1 280px; }
+.pdf-feedback-field textarea { min-height: 56px; resize: vertical; }
+.paper-evaluate-inline { display: flex; flex-wrap: wrap; gap: 6px; margin-left: auto; }
+.paper-evaluate-inline input, .paper-evaluate-inline select { max-width: 150px; min-height: 32px; padding: 0 8px; border: 1px solid var(--line-strong); border-radius: 7px; font-size: 10px; }
+@media (max-width: 680px) { .pdf-page-control { width: 100%; margin-left: 0; justify-content: space-between; } .pdf-review-footer .button { width: 100%; justify-content: center; } }

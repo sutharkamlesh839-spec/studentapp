@@ -80,6 +80,7 @@ class PaperResponse(APIModel):
     title: str
     subject: str
     file_name: str | None
+    annotated_file_name: str | None
     status: str
     marks: float | None
     feedback: str | None

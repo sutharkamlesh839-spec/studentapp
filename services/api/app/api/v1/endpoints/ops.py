@@ -3,6 +3,7 @@ from pathlib import Path
 from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
+from fastapi.responses import FileResponse, RedirectResponse
 from sqlalchemy import or_, select
 
 from app.api.deps import DB, CurrentUser, require_permission
@@ -34,7 +35,7 @@ ContentPublisher = Depends(require_permission("content.publish"))
 UserManager = Depends(require_permission("user.manage"))
 PaperEvaluator = Depends(require_permission("evaluation.mark"))
 AuditReader = Depends(require_permission("audit.read"))
-PAPER_EXTENSIONS = {".pdf", ".png", ".jpg", ".jpeg", ".webp", ".doc", ".docx"}
+PAPER_EXTENSIONS = {".pdf"}
 
 
 def video_response(item: VideoLesson) -> VideoResponse:
@@ -76,12 +77,23 @@ def update_response(item: OfficialUpdate) -> OfficialUpdateResponse:
     )
 
 
+async def ensure_paper_access(db: DB, user: User, paper: PaperSubmission) -> None:
+    roles = {role.code for role in user.roles}
+    if "student" in roles and not roles.intersection({"admin", "super_admin"}) and paper.student_id != user.id:
+        raise HTTPException(status_code=404, detail="Paper not found")
+    if "faculty" in roles and not roles.intersection({"admin", "super_admin"}) and paper.assigned_to != user.id:
+        raise HTTPException(status_code=403, detail="This paper is not assigned to you")
+    if not roles.intersection({"student", "faculty", "admin", "super_admin"}):
+        raise HTTPException(status_code=403, detail="You do not have access to this paper")
+
+
 def paper_response(item: PaperSubmission) -> PaperResponse:
     return PaperResponse(
         id=item.id,
         title=item.title,
         subject=item.subject,
         file_name=item.file_name,
+        annotated_file_name=item.annotated_file_name,
         status=item.status,
         marks=item.marks,
         feedback=item.feedback,
@@ -179,6 +191,8 @@ async def upload_paper(
     content = await file.read(settings.upload_max_bytes + 1)
     if len(content) > settings.upload_max_bytes:
         raise HTTPException(status_code=413, detail="File is larger than the configured upload limit")
+    if not content.startswith(b"%PDF-"):
+        raise HTTPException(status_code=415, detail="Paper must be a valid PDF")
     item = PaperSubmission(
         student_id=current_user.id,
         title=title.strip(),
@@ -187,13 +201,97 @@ async def upload_paper(
     )
     db.add(item)
     await db.flush()
-    item.file_key = f"papers/{item.id}/{uuid4().hex}-{Path(file.filename or 'paper').name.replace(' ', '-') }"
+    item.file_key = f"papers/{item.id}/{uuid4().hex}-{Path(file.filename or 'paper').name.replace(' ', '-')}"
     await storage.put(item.file_key, content, file.content_type)
     db.add(item)
     await record_audit(db, actor_id=current_user.id, action="paper.submitted", resource_type="paper", resource_id=str(item.id))
     await db.commit()
     await db.refresh(item)
     return paper_response(item)
+
+
+@router.get("/papers/{paper_id}/download")
+async def download_paper(paper_id: UUID, db: DB, current_user: CurrentUser):
+    paper = await db.get(PaperSubmission, paper_id)
+    if not paper or not paper.file_key:
+        raise HTTPException(status_code=404, detail="Paper file not found")
+    await ensure_paper_access(db, current_user, paper)
+    if storage.driver == "s3":
+        return RedirectResponse(await storage.presign_download(paper.file_key, paper.file_name))
+    path = storage.local_path(paper.file_key)
+    if not path.exists():
+        raise HTTPException(status_code=404, detail="Paper file not found")
+    return FileResponse(path, filename=paper.file_name, media_type="application/pdf")
+
+
+@router.get("/papers/{paper_id}/annotated-download")
+async def download_annotated_paper(paper_id: UUID, db: DB, current_user: CurrentUser):
+    paper = await db.get(PaperSubmission, paper_id)
+    if not paper or not paper.annotated_file_key:
+        raise HTTPException(status_code=404, detail="Annotated paper not found")
+    await ensure_paper_access(db, current_user, paper)
+    if storage.driver == "s3":
+        return RedirectResponse(await storage.presign_download(paper.annotated_file_key, paper.annotated_file_name))
+    path = storage.local_path(paper.annotated_file_key)
+    if not path.exists():
+        raise HTTPException(status_code=404, detail="Annotated paper not found")
+    return FileResponse(path, filename=paper.annotated_file_name, media_type="application/pdf")
+
+
+@router.post("/papers/{paper_id}/annotated", response_model=PaperResponse)
+async def upload_annotated_paper(
+    paper_id: UUID,
+    db: DB,
+    current_user: User = PaperEvaluator,
+    file: UploadFile = File(...),  # noqa: B008
+    marks: float | None = Form(default=None, ge=0, le=1000),
+    feedback: str | None = Form(default=None, min_length=2, max_length=10000),
+) -> PaperResponse:
+    paper = await db.get(PaperSubmission, paper_id)
+    if not paper:
+        raise HTTPException(status_code=404, detail="Paper not found")
+    roles = {role.code for role in current_user.roles}
+    if "faculty" in roles and not roles.intersection({"admin", "super_admin"}) and paper.assigned_to != current_user.id:
+        raise HTTPException(status_code=403, detail="This paper is outside your assigned scope")
+    if Path(file.filename or "").suffix.lower() != ".pdf":
+        raise HTTPException(status_code=415, detail="Annotated review must be a PDF")
+    content = await file.read(settings.upload_max_bytes + 1)
+    if len(content) > settings.upload_max_bytes:
+        raise HTTPException(status_code=413, detail="File is larger than the configured upload limit")
+    if not content.startswith(b"%PDF-"):
+        raise HTTPException(status_code=415, detail="Annotated review must be a valid PDF")
+    if (marks is None) != (feedback is None):
+        raise HTTPException(status_code=422, detail="Marks and feedback must be provided together")
+    paper.annotated_file_key = f"papers/{paper.id}/review-{uuid4().hex}.pdf"
+    paper.annotated_file_name = f"reviewed-{Path(paper.file_name or 'paper').stem}.pdf"
+    paper.status = "reviewed"
+    if marks is not None and feedback is not None:
+        paper.marks = marks
+        paper.feedback = feedback.strip()
+        paper.status = "evaluated"
+        paper.evaluated_at = datetime.now(UTC)
+    await storage.put(paper.annotated_file_key, content, "application/pdf")
+    await record_audit(
+        db,
+        actor_id=current_user.id,
+        action="paper.annotated",
+        resource_type="paper",
+        resource_id=str(paper.id),
+        after_state={"marks": marks, "completed": marks is not None},
+    )
+    if marks is not None:
+        await record_audit(
+            db,
+            actor_id=current_user.id,
+            action="paper.evaluated",
+            resource_type="paper",
+            resource_id=str(paper.id),
+            after_state={"marks": marks},
+        )
+        db.add(Notification(user_id=paper.student_id, title="Your paper was evaluated", body=paper.title, kind="evaluation"))
+    await db.commit()
+    await db.refresh(paper)
+    return paper_response(paper)
 
 
 @router.get("/papers", response_model=list[PaperResponse])
@@ -227,7 +325,7 @@ async def evaluate_paper(paper_id: UUID, payload: PaperEvaluate, db: DB, current
     if not paper:
         raise HTTPException(status_code=404, detail="Paper not found")
     roles = {role.code for role in current_user.roles}
-    if "faculty" in roles and "admin" not in roles and paper.assigned_to != current_user.id:
+    if "faculty" in roles and not roles.intersection({"admin", "super_admin"}) and paper.assigned_to != current_user.id:
         raise HTTPException(status_code=403, detail="This paper is outside your assigned scope")
     paper.marks = payload.marks
     paper.feedback = payload.feedback

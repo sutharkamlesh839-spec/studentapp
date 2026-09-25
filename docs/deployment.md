@@ -146,9 +146,10 @@ Do not run `Base.metadata.create_all()` in production. Alembic is the source of 
 - [ ] Admin created with `scripts/create_admin.py`.
 - [ ] Login, logout, refresh and session revocation verified.
 - [ ] Resource upload, download, bookmark and completion verified.
+- [ ] PDF paper upload, admin assignment, faculty-only queue/access, reviewed PDF download, marks/feedback and student notification verified.
 - [ ] Web `NEXT_PUBLIC_ENABLE_DEMO=false` verified.
 - [ ] Error tracking, structured logs and uptime checks are configured.
 
 ## 7. Scope note
 
-A deployment is not the same as feature completeness. The current deployable slice is real and persisted, but the MCQ, test series, paper evaluation, query, notification, AI, career and analytics domains still need their own database migrations, services and tests as the roadmap is implemented. They are not described as production-complete until their API and persistence vertical slices pass the same acceptance checklist.
+A deployment is not the same as feature completeness. The implemented slices are real and persisted, including the PDF paper assignment/review workflow, but production readiness still requires provider-specific verification, operational controls and the remaining roadmap work. No domain is described as production-complete until its API, persistence, authorization and deployment checks pass the same acceptance checklist.

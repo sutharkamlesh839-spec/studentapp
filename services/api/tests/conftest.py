@@ -16,7 +16,7 @@ from app.main import app
 
 
 @pytest.fixture
-async def client():
+async def db_session():
     engine = create_async_engine(
         "sqlite+aiosqlite://",
         connect_args={"check_same_thread": False},
@@ -25,10 +25,15 @@ async def client():
     session_factory = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
     async with engine.begin() as connection:
         await connection.run_sync(Base.metadata.create_all)
+    async with session_factory() as session:
+        yield session
+    await engine.dispose()
 
+
+@pytest.fixture
+async def client(db_session: AsyncSession):
     async def override_db():
-        async with session_factory() as session:
-            yield session
+        yield db_session
 
     app.dependency_overrides[get_db] = override_db
     try:
@@ -36,4 +41,3 @@ async def client():
             yield test_client
     finally:
         app.dependency_overrides.clear()
-        await engine.dispose()

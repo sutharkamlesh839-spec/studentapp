@@ -70,6 +70,8 @@ class PaperSubmission(Base):
     subject: Mapped[str] = mapped_column(String(120), nullable=False)
     file_key: Mapped[str | None] = mapped_column(String(500), nullable=True)
     file_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    annotated_file_key: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    annotated_file_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
     status: Mapped[str] = mapped_column(String(30), default="submitted", nullable=False)
     marks: Mapped[float | None] = mapped_column(Float, nullable=True)
     feedback: Mapped[str | None] = mapped_column(Text, nullable=True)
