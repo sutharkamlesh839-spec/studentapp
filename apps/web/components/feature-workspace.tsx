@@ -1,11 +1,13 @@
 "use client";
 
 import type { Route } from "next";
+import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { Icon } from "@/components/icon";
 import { apiFetch, ApiError, API_BASE_URL } from "@/lib/api-client";
-import { PdfReviewEditor } from "@/components/pdf-review-editor";
+
+const PdfReviewEditor = dynamic(() => import("@/components/pdf-review-editor").then((module) => module.PdfReviewEditor), { ssr: false });
 
 type ResourceItem = {
   id: string;
