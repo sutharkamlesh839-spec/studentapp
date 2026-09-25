@@ -93,7 +93,7 @@ async def list_resources(
     resource_type: str | None = None,
     chapter: str | None = None,
 ) -> list[ResourceResponse]:
-    query = select(Resource).where(Resource.is_active.is_(True)).order_by(Resource.created_at.desc()).limit(100)
+    query = select(Resource).where(Resource.is_active.is_(True)).order_by(Resource.created_at.desc()).limit(500)
     roles = {role.code for role in current_user.roles}
     if "student" in roles:
         profile = await db.scalar(select(StudentProfile).where(StudentProfile.user_id == current_user.id))
@@ -122,7 +122,7 @@ async def sync_icai_catalog(request: Request, db: DB, current_user: User = Conte
     created = 0
     updated = 0
     for item in ICAI_CATALOG:
-        resource = await db.scalar(select(Resource).where(Resource.title == item["title"], Resource.source == item["source"]))
+        resource = await db.scalar(select(Resource).where(Resource.title == item["title"], Resource.official_icai.is_(True)))
         if resource:
             resource.level = item["level"]
             resource.subject = item["subject"]
