@@ -10,6 +10,7 @@ export const studentNavigation: NavItem[] = [
   { label: "Revision", href: "/revision", icon: "rotate-ccw" },
   { label: "Past paper analysis", href: "/past-papers", icon: "scan-search" },
   { label: "Videos", href: "/videos", icon: "play-square" },
+  { label: "Paper evaluation", href: "/papers", icon: "file-text" },
   { label: "My library", href: "/library", icon: "bookmark" },
 ];
 
@@ -30,6 +31,7 @@ export const adminNavigation: NavItem[] = [
   { label: "Resources", href: "/admin/resources", icon: "book-open" },
   { label: "MCQ management", href: "/admin/mcqs", icon: "circle-help" },
   { label: "Tests", href: "/admin/tests", icon: "clipboard-check" },
+  { label: "Learning content", href: "/admin/content", icon: "play-square" },
   { label: "Evaluations", href: "/admin/evaluations", icon: "file-text" },
   { label: "Audit logs", href: "/admin/audit-logs", icon: "shield-check" },
   { label: "Settings", href: "/admin/settings", icon: "settings" },

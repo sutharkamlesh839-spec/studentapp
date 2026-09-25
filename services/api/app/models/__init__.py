@@ -11,6 +11,7 @@ from app.models.learning import (
     SyllabusItem,
     TestAttempt,
 )
+from app.models.ops import OfficialUpdate, Opportunity, PaperSubmission, VideoLesson
 from app.models.profiles import FacultyProfile, StudentProfile
 from app.models.rbac import Permission, Role, role_permissions, user_roles
 from app.models.resources import Resource, ResourceBookmark, ResourceProgress
@@ -23,6 +24,9 @@ __all__ = [
     "MCQQuestion",
     "MCQResponse",
     "Notification",
+    "OfficialUpdate",
+    "Opportunity",
+    "PaperSubmission",
     "PracticeTest",
     "RevisionItem",
     "StudyPlanTask",
@@ -38,6 +42,7 @@ __all__ = [
     "StudentProfile",
     "User",
     "UserSession",
+    "VideoLesson",
     "role_permissions",
     "user_roles",
 ]

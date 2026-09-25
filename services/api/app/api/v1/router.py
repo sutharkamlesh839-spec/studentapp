@@ -1,6 +1,6 @@
 from fastapi import APIRouter
 
-from app.api.v1.endpoints import auth, dashboard, health, learning, resource_download, resources
+from app.api.v1.endpoints import ai, auth, dashboard, health, learning, ops, resource_download, resources
 
 api_router = APIRouter(prefix="/api/v1")
 api_router.include_router(health.router)
@@ -9,3 +9,5 @@ api_router.include_router(dashboard.router)
 api_router.include_router(resources.router)
 api_router.include_router(resource_download.router)
 api_router.include_router(learning.router)
+api_router.include_router(ai.router)
+api_router.include_router(ops.router)

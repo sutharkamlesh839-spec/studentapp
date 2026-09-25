@@ -23,6 +23,9 @@ class Settings(BaseSettings):
     s3_access_key_id: str | None = None
     s3_secret_access_key: str | None = None
     upload_max_bytes: int = 15 * 1024 * 1024
+    ai_provider_url: str | None = None
+    ai_api_key: str | None = None
+    ai_model: str = "gpt-4o-mini"
 
     # CORS_ORIGINS is intentionally accepted as a comma-separated environment
     # variable (for example, "http://localhost:3000,https://app.example.com").

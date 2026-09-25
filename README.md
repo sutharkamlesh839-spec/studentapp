@@ -62,5 +62,6 @@ See `docs/deployment.md` for Windows PowerShell, Docker Compose, Vercel, Render/
 - **Foundation:** authentication, refresh sessions, RBAC, audit/session models, responsive shell and protected login gate implemented.
 - **Working vertical slice:** resources API, PostgreSQL/SQLite migration, admin upload, private file download, bookmarks and completion progress.
 - **Learning vertical slice:** persisted MCQs with answer history and mistakes, syllabus tracking, study planner, revision queue, test publishing/attempts, faculty queries, notifications and analytics APIs are implemented with frontend connections for the student/admin flows.
-- **Still in progress:** faculty paper evaluation, student/faculty management screens, videos, AI, career/articleship and ICAI update integrations need their own persisted APIs, permissions and verification before being called production-complete.
-- **Next:** harden the learning slice against PostgreSQL/Redis/S3, then complete evaluation, faculty operations and supported external integrations.
+- **Operations vertical slice:** level-scoped videos, career/articleship opportunities, official updates, paper submission/evaluation, faculty query replies, admin user lists and audit-log APIs are implemented with protected frontend workspaces.
+- **AI:** an optional OpenAI-compatible provider integration is available at `/api/v1/ai/assist`; it remains disabled until the deployment supplies `AI_PROVIDER_URL` and `AI_API_KEY`.
+- **Still in progress:** faculty assignment workflows, richer admin editing/bulk tools, production provider verification and PostgreSQL/Redis/S3 integration testing are not called complete until exercised on the deployment environment.
