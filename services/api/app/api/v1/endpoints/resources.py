@@ -11,8 +11,9 @@ from app.models.profiles import StudentProfile
 from app.models.resources import Resource, ResourceBookmark, ResourceProgress
 from app.models.user import User
 from app.schemas.common import MessageResponse
-from app.schemas.resources import ResourceCreate, ResourceProgressRequest, ResourceResponse
+from app.schemas.resources import CatalogSyncResponse, ResourceCreate, ResourceProgressRequest, ResourceResponse
 from app.services.audit_service import record_audit
+from app.services.icai_catalog import ICAI_CATALOG
 from app.services.storage import storage
 
 router = APIRouter(prefix="/resources", tags=["resources"])
@@ -113,6 +114,39 @@ async def list_resources(
     resources = list((await db.scalars(query)).all())
     bookmark_ids, completed_ids = await user_resource_state(db, current_user, [resource.id for resource in resources])
     return [to_response(resource, bookmark_ids, completed_ids) for resource in resources]
+
+
+@router.post("/sync-icai", response_model=CatalogSyncResponse)
+async def sync_icai_catalog(request: Request, db: DB, current_user: User = ContentPublisher) -> CatalogSyncResponse:
+    """Index official ICAI links without copying ICAI's copyrighted files."""
+    created = 0
+    updated = 0
+    for item in ICAI_CATALOG:
+        resource = await db.scalar(select(Resource).where(Resource.title == item["title"], Resource.source == item["source"]))
+        if resource:
+            resource.level = item["level"]
+            resource.subject = item["subject"]
+            resource.chapter = item["chapter"]
+            resource.official_icai = True
+            resource.is_active = True
+            updated += 1
+            continue
+        resource = Resource(
+            title=item["title"],
+            description="Official ICAI study material link. The source page contains the latest applicable edition and chapter/unit links.",
+            level=item["level"],
+            subject=item["subject"],
+            chapter=item["chapter"],
+            resource_type="Official ICAI Study Material",
+            source=item["source"],
+            official_icai=True,
+            created_by=current_user.id,
+        )
+        db.add(resource)
+        created += 1
+    await record_audit(db, actor_id=current_user.id, action="resource.icai_catalog_synced", resource_type="resource_catalog", after_state={"created": created, "updated": updated}, request_id=request.headers.get("x-request-id"))
+    await db.commit()
+    return CatalogSyncResponse(created=created, updated=updated, total=len(ICAI_CATALOG), source="https://www.icai.org/post/study-material-nset")
 
 
 @router.post("", response_model=ResourceResponse, status_code=status.HTTP_201_CREATED)

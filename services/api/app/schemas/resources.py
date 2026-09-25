@@ -44,3 +44,10 @@ class ResourceCreate(APIModel):
 
 class ResourceProgressRequest(APIModel):
     completed: bool
+
+
+class CatalogSyncResponse(APIModel):
+    created: int
+    updated: int
+    total: int
+    source: str
