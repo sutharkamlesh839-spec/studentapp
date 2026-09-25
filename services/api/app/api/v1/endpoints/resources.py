@@ -3,10 +3,11 @@ from pathlib import Path
 from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile, status
-from sqlalchemy import select
+from sqlalchemy import or_, select
 
 from app.api.deps import DB, CurrentUser, require_permission
 from app.core.config import settings
+from app.models.profiles import StudentProfile
 from app.models.resources import Resource, ResourceBookmark, ResourceProgress
 from app.models.user import User
 from app.schemas.common import MessageResponse
@@ -27,6 +28,15 @@ ALLOWED_MIME_TYPES = {
     "application/vnd.ms-excel",
     "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
 }
+
+
+async def ensure_resource_access(db: DB, user: User, resource: Resource) -> None:
+    """Students can only access resources for their own CA level."""
+    if "student" not in {role.code for role in user.roles}:
+        return
+    profile = await db.scalar(select(StudentProfile).where(StudentProfile.user_id == user.id))
+    if not profile or profile.level != resource.level:
+        raise HTTPException(status_code=404, detail="Resource not found")
 
 
 def to_response(resource: Resource, bookmark_ids: set[UUID], completed_ids: set[UUID]) -> ResourceResponse:
@@ -80,14 +90,24 @@ async def list_resources(
     level: str | None = None,
     subject: str | None = None,
     resource_type: str | None = None,
+    chapter: str | None = None,
 ) -> list[ResourceResponse]:
     query = select(Resource).where(Resource.is_active.is_(True)).order_by(Resource.created_at.desc()).limit(100)
-    if q:
-        query = query.where(Resource.title.ilike(f"%{q.strip()}%"))
-    if level:
+    roles = {role.code for role in current_user.roles}
+    if "student" in roles:
+        profile = await db.scalar(select(StudentProfile).where(StudentProfile.user_id == current_user.id))
+        if not profile:
+            return []
+        query = query.where(Resource.level == profile.level)
+    elif level:
         query = query.where(Resource.level == level)
+    if q:
+        search = f"%{q.strip()}%"
+        query = query.where(or_(Resource.title.ilike(search), Resource.subject.ilike(search), Resource.chapter.ilike(search)))
     if subject:
         query = query.where(Resource.subject == subject)
+    if chapter:
+        query = query.where(Resource.chapter == chapter)
     if resource_type:
         query = query.where(Resource.resource_type == resource_type)
     resources = list((await db.scalars(query)).all())
@@ -193,6 +213,7 @@ async def toggle_bookmark(resource_id: UUID, db: DB, current_user: CurrentUser) 
     resource = await db.get(Resource, resource_id)
     if not resource or not resource.is_active:
         raise HTTPException(status_code=404, detail="Resource not found")
+    await ensure_resource_access(db, current_user, resource)
     bookmark = await db.scalar(
         select(ResourceBookmark).where(
             ResourceBookmark.user_id == current_user.id,
@@ -219,6 +240,7 @@ async def update_progress(
     resource = await db.get(Resource, resource_id)
     if not resource or not resource.is_active:
         raise HTTPException(status_code=404, detail="Resource not found")
+    await ensure_resource_access(db, current_user, resource)
     progress = await db.scalar(
         select(ResourceProgress).where(
             ResourceProgress.user_id == current_user.id,
