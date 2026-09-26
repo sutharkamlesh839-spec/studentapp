@@ -82,21 +82,34 @@ export function PdfReviewEditor({ paperId, title, onSaved, onClose }: Props) {
     return () => { controller.abort(); if (objectUrl) URL.revokeObjectURL(objectUrl); };
   }, [paperId]);
 
+  const annotationsRef = useRef<Annotation[]>([]);
+  const draftRef = useRef<Point[]>([]);
+  const pageRef = useRef(1);
+  const toolRef = useRef<"pen" | "marker" | "text">("pen");
+  annotationsRef.current = annotations;
+  draftRef.current = draft;
+  pageRef.current = page;
+  toolRef.current = tool;
+
   const drawOverlay = useCallback(() => {
     const canvas = canvasRef.current;
     const frame = pageFrameRef.current;
     if (!canvas || !frame) return;
     const rect = frame.getBoundingClientRect();
+    if (!rect.width || !rect.height) return;
     const ratio = window.devicePixelRatio || 1;
-    canvas.width = rect.width * ratio;
-    canvas.height = rect.height * ratio;
-    canvas.style.width = `${rect.width}px`;
-    canvas.style.height = `${rect.height}px`;
+    const pixelWidth = Math.max(1, Math.round(rect.width * ratio));
+    const pixelHeight = Math.max(1, Math.round(rect.height * ratio));
+    // Changing canvas dimensions resets its drawing context and can make the
+    // react-pdf page appear to blink. Only resize when its backing store size
+    // actually changed; CSS already keeps the overlay aligned to the page.
+    if (canvas.width !== pixelWidth) canvas.width = pixelWidth;
+    if (canvas.height !== pixelHeight) canvas.height = pixelHeight;
     const context = canvas.getContext("2d");
     if (!context) return;
     context.setTransform(ratio, 0, 0, ratio, 0, 0);
     context.clearRect(0, 0, rect.width, rect.height);
-    const visible = annotations.filter((item) => item.page === page);
+    const visible = annotationsRef.current.filter((item) => item.page === pageRef.current);
     for (const item of visible) {
       if (item.type === "text") {
         context.fillStyle = "#b42318";
@@ -106,24 +119,32 @@ export function PdfReviewEditor({ paperId, title, onSaved, onClose }: Props) {
       }
       if (item.points.length < 2) continue;
       context.strokeStyle = item.type === "marker" ? "rgba(245, 190, 40, .45)" : "#c0392b";
-      context.lineWidth = (item.type === "marker" ? 14 : 3) * ratio;
+      context.lineWidth = item.type === "marker" ? 14 : 3;
       context.lineCap = "round";
       context.lineJoin = "round";
       context.beginPath();
       item.points.forEach((point, index) => index === 0 ? context.moveTo(point.x * rect.width, point.y * rect.height) : context.lineTo(point.x * rect.width, point.y * rect.height));
       context.stroke();
     }
-    if (draft.length > 1) {
-      context.strokeStyle = tool === "marker" ? "rgba(245, 190, 40, .45)" : "#c0392b";
-      context.lineWidth = tool === "marker" ? 14 : 3;
+    const currentDraft = draftRef.current;
+    if (currentDraft.length > 1) {
+      context.strokeStyle = toolRef.current === "marker" ? "rgba(245, 190, 40, .45)" : "#c0392b";
+      context.lineWidth = toolRef.current === "marker" ? 14 : 3;
       context.lineCap = "round";
       context.beginPath();
-      draft.forEach((point, index) => index === 0 ? context.moveTo(point.x * rect.width, point.y * rect.height) : context.lineTo(point.x * rect.width, point.y * rect.height));
+      currentDraft.forEach((point, index) => index === 0 ? context.moveTo(point.x * rect.width, point.y * rect.height) : context.lineTo(point.x * rect.width, point.y * rect.height));
       context.stroke();
     }
-  }, [annotations, draft, page, tool]);
+  }, []);
 
-  useEffect(() => { drawOverlay(); const observer = new ResizeObserver(drawOverlay); if (pageFrameRef.current) observer.observe(pageFrameRef.current); return () => observer.disconnect(); }, [drawOverlay]);
+  useEffect(() => {
+    drawOverlay();
+    const observer = new ResizeObserver(drawOverlay);
+    if (pageFrameRef.current) observer.observe(pageFrameRef.current);
+    return () => observer.disconnect();
+  }, [drawOverlay]);
+
+  useEffect(() => { drawOverlay(); }, [annotations, draft, page, tool, drawOverlay]);
 
   const pointerDown = (event: React.PointerEvent<HTMLCanvasElement>) => {
     const canvas = canvasRef.current;
