@@ -137,6 +137,7 @@ class TestResponse(APIModel):
     duration_minutes: int
     marks: int
     question_count: int
+    question_ids: list[UUID] = []
     status: str
     created_at: datetime
 

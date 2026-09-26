@@ -95,6 +95,9 @@ export function AppShell({ children }: Readonly<{ children: React.ReactNode }>) 
   const requiresLogin = authReady && !authUser && !publicPath;
   const isAdmin = authUser?.roles?.some((role) => role === "admin" || role === "super_admin") ?? false;
   const isFaculty = authUser?.roles?.includes("faculty") ?? false;
+  const routeNeedsAdmin = pathname.startsWith("/admin");
+  const routeNeedsFaculty = pathname.startsWith("/faculty");
+  const hasRouteAccess = !routeNeedsAdmin && !routeNeedsFaculty || (routeNeedsAdmin && isAdmin) || (routeNeedsFaculty && (isFaculty || isAdmin));
   const primaryNavigation = isAdmin ? adminNavigation : isFaculty ? facultyNavigation : studentNavigation;
 
   return (
@@ -126,7 +129,7 @@ export function AppShell({ children }: Readonly<{ children: React.ReactNode }>) 
           <div className="breadcrumbs"><span>Workspace</span><span className="breadcrumb-slash">/</span><strong>{pathname === "/" ? "Overview" : pathname.split("/").filter(Boolean).slice(-1)[0] ?? "Workspace"}</strong></div>
           <div className="topbar-actions"><button className="search-trigger" onClick={() => setCommandOpen(true)} aria-label="Open global search"><Icon name="search" size={17} /><span>Search anything</span><kbd><Icon name="command" size={12} /> K</kbd></button><Link href={"/notifications" as Route} className="icon-button notification-button" aria-label="Notifications"><Icon name="bell" size={19} /><span className="notification-dot" /></Link><div className="topbar-avatar avatar">{initials(authUser?.full_name)}</div></div>
         </header>
-        <main className="main-content">{authReady && authUser ? children : <div className="auth-gate-placeholder" aria-hidden="true" />}</main>
+        <main className="main-content">{authReady && authUser ? hasRouteAccess ? children : <section className="dashboard-card generic-intro"><div className="generic-intro-icon"><Icon name="shield-check" size={23} /></div><div><span className="section-kicker">Protected workspace</span><h2>You do not have access to this area.</h2><p>Your account role does not include this workspace. Contact an administrator if your scope needs to change.</p></div></section> : <div className="auth-gate-placeholder" aria-hidden="true" />}</main>
         <footer className="app-footer"><span>CA OS · Built for the long game</span><span className="footer-status"><i /> All systems operational</span></footer>
       </div>
 

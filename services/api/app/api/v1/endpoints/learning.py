@@ -95,6 +95,7 @@ def test_response(test: PracticeTest) -> TestResponse:
         duration_minutes=test.duration_minutes,
         marks=test.marks,
         question_count=len(test.question_ids or []),
+        question_ids=[UUID(value) for value in (test.question_ids or [])],
         status=test.status,
         created_at=test.created_at,
     )
