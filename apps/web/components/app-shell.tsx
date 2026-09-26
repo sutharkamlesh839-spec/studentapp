@@ -7,7 +7,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Icon } from "@/components/icon";
 import { CursorSystem } from "@/components/cursor-system";
 import { LoginModal } from "@/components/login-modal";
-import { apiFetch } from "@/lib/api-client";
+import { apiFetch, API_BASE_URL } from "@/lib/api-client";
 import { adminNavigation, facultyNavigation, studentNavigation, supportNavigation } from "@/lib/navigation";
 
 type AuthUser = { full_name: string; roles?: string[] };
@@ -39,14 +39,29 @@ export function AppShell({ children }: Readonly<{ children: React.ReactNode }>) 
   const publicPath = pathname === "/login" || pathname === "/register" || pathname === "/terms" || pathname === "/privacy" || pathname === "/forgot-password";
 
   useEffect(() => {
-    try {
-      const stored = window.localStorage.getItem("caos-user");
-      if (stored) setAuthUser(JSON.parse(stored) as AuthUser);
-    } catch {
-      window.localStorage.removeItem("caos-user");
-    } finally {
-      setAuthReady(true);
-    }
+    let active = true;
+
+    const restoreSession = async () => {
+      try {
+        const response = await fetch(`${API_BASE_URL}/api/v1/auth/me`, { credentials: "include" });
+        if (!response.ok) throw new Error("No active session");
+        const user = await response.json() as AuthUser;
+        if (active) {
+          setAuthUser(user);
+          window.localStorage.setItem("caos-user", JSON.stringify(user));
+        }
+      } catch {
+        if (active) {
+          window.localStorage.removeItem("caos-user");
+          setAuthUser(null);
+        }
+      } finally {
+        if (active) setAuthReady(true);
+      }
+    };
+
+    void restoreSession();
+    return () => { active = false; };
   }, []);
 
   useEffect(() => {
@@ -111,7 +126,7 @@ export function AppShell({ children }: Readonly<{ children: React.ReactNode }>) 
           <div className="breadcrumbs"><span>Workspace</span><span className="breadcrumb-slash">/</span><strong>{pathname === "/" ? "Overview" : pathname.split("/").filter(Boolean).slice(-1)[0] ?? "Workspace"}</strong></div>
           <div className="topbar-actions"><button className="search-trigger" onClick={() => setCommandOpen(true)} aria-label="Open global search"><Icon name="search" size={17} /><span>Search anything</span><kbd><Icon name="command" size={12} /> K</kbd></button><Link href={"/notifications" as Route} className="icon-button notification-button" aria-label="Notifications"><Icon name="bell" size={19} /><span className="notification-dot" /></Link><div className="topbar-avatar avatar">{initials(authUser?.full_name)}</div></div>
         </header>
-        <main className="main-content">{children}</main>
+        <main className="main-content">{authReady && authUser ? children : <div className="auth-gate-placeholder" aria-hidden="true" />}</main>
         <footer className="app-footer"><span>CA OS · Built for the long game</span><span className="footer-status"><i /> All systems operational</span></footer>
       </div>
 

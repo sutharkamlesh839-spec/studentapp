@@ -38,6 +38,20 @@ python -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 
 The API exposes `GET /health` and versioned routes under `/api/v1`. For a real integration run, set `DATABASE_URL` to PostgreSQL and run `alembic upgrade head`; SQLite is available for quick local API checks only.
 
+## First local login
+
+The database does not contain a default account or password. A `401 Unauthorized` response before login is expected. Create a student account from `http://localhost:3000/register`, then sign in with that account.
+
+To create staff accounts, run the secure local password-prompt scripts from `services/api` after migrations:
+
+```powershell
+cd services/api
+.\\.venv\\Scripts\\python.exe scripts\\create_faculty.py
+.\\.venv\\Scripts\\python.exe scripts\\create_admin.py
+```
+
+Each script asks for the email, name and password locally; no password is stored in source control. After a failed login, the web client clears stale local session state and protected workspaces wait for a verified `/api/v1/auth/me` session before calling module APIs.
+
 ## Quality commands
 
 ```powershell
